@@ -1,7 +1,7 @@
 // @ts-ignore
 import * as midiParser from "midi-parser-js";
 import fs from "fs/promises";
-import { MidiFile, MidiTrackEvent } from "types";
+import { MidiFile, MidiTrackEvent, WorkingTrack } from "types";
 import { MIDI_NUMBER_NOTE_MAPPINGS } from "./constants";
 
 fs.readFile("./test_files/risen.mid", {
@@ -9,40 +9,62 @@ fs.readFile("./test_files/risen.mid", {
 }).then((data) => {
   const midiData = midiParser.parse(data) as MidiFile;
 
-  const maxTrackLength = Math.max(...midiData.track.map((track) => track.event.length));
+  const lengthTrackMap: { [key: number]: number } = {};
+  const maxTrackLength = Math.max(
+    ...midiData.track.map((track, i) => {
+      const size = track.event.length;
 
-  const notes: string[] = [];
+      lengthTrackMap[size] = i;
+
+      return size;
+    })
+  );
+  const largestTrackIndex = lengthTrackMap[maxTrackLength];
 
   const ppq = midiData.timeDivision;
   let bpm = 120;
   let tempo = 500000;
+  let beats = 0;
   let microseconds = 0;
   let useNoteOff = false;
 
-  for (const track of midiData.track) {
-    for (const event of track.event) {
-      if (event.type === 8) {
-        useNoteOff = true;
+  const tracks: WorkingTrack[] = [];
 
-        break;
-      }
+  // Begin pass 1, gather data
+  for (let i = 0; i < midiData.track.length; i++) {
+    const track = midiData.track[i];
+
+    let totalNotes = 0;
+    let channel: null | number = null;
+
+    for (const event of track.event) {
+      if (event.channel) channel = event.channel;
+
+      if (event.type === 9) totalNotes += 1;
+      if (event.type === 8) useNoteOff = true;
     }
 
-    if (useNoteOff) break;
+    tracks.push({
+      trackIndex: i,
+      channel,
+      chords: new Set(),
+      currentNote: 0,
+      notes: [],
+      totalNotes: useNoteOff ? totalNotes : totalNotes / 2,
+    });
   }
 
+  // Begin pass 2, analyze data
   for (let i = 0; i < maxTrackLength; i++) {
-    let prominentEvent: MidiTrackEvent | null = null;
-
-    for (const track of midiData.track) {
+    for (let j = 0; j < midiData.track.length; j++) {
+      const track = midiData.track[j];
       const event = track.event[i];
 
       if (event == null) continue;
 
       switch (event.type) {
         case 9: {
-          if (event.channel === 1) notes.push(`"${MIDI_NUMBER_NOTE_MAPPINGS[(event.data as number[])[0]]}:2"`);
-          // prominentEvent = prominentEvent != null ? ((event.data[0] as number) > (prominentEvent.data[0] as number) ? event : prominentEvent) : event;
+          const data = event.data as number[];
         }
 
         case 255: {
@@ -55,13 +77,13 @@ fs.readFile("./test_files/risen.mid", {
         }
       }
 
-      if (event.channel === 0) microseconds += (event.deltaTime / ppq) * tempo;
-    }
+      const beatCalc = event.deltaTime / ppq;
+      beats += beatCalc;
+      if (j === largestTrackIndex) microseconds += beatCalc * tempo;
 
-    // if (prominentEvent != null) notes.push(`"${MIDI_NUMBER_NOTE_MAPPINGS[prominentEvent!.data[0] as number]}:2"`);
+      console.log(event, beatCalc);
+    }
   }
 
-  console.log(notes.join(", "));
   console.log(microseconds / 1000000);
-  // console.log(notes.join(", "));
 });

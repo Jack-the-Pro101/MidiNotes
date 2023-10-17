@@ -16,3 +16,15 @@ export interface MidiTrackEvent {
   metaType?: number;
   type: number;
 }
+
+export interface ParsedTrack {
+  totalNotes: number;
+  channel: number | null;
+  trackIndex: number;
+  notes: string[];
+}
+
+export interface WorkingTrack extends ParsedTrack {
+  currentNote: number;
+  chords: Set<string>;
+}
