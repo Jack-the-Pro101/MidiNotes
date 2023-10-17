@@ -4,12 +4,14 @@ import fs from "fs/promises";
 import { MidiFile, MidiTrackEvent } from "types";
 import { MIDI_NUMBER_NOTE_MAPPINGS } from "./constants";
 
-fs.readFile("Undertale - Megalovania.mid", {
+fs.readFile("./test_files/Aria Math.mid", {
   encoding: "base64",
 }).then((data) => {
   const midiData = midiParser.parse(data) as MidiFile;
 
-  const maxTrackLength = Math.max(...midiData.track.map((track) => track.event.length));
+  const maxTrackLength = Math.max(
+    ...midiData.track.map((track) => track.event.length)
+  );
 
   const notes: string[] = [];
 
@@ -28,9 +30,7 @@ fs.readFile("Undertale - Megalovania.mid", {
   //     .map((e) => MIDI_NUMBER_NOTE_MAPPINGS[(e.data as number[])[0]])
   // );
 
-  // console.log(JSON.stringify(midiData.track[1]));
-
-  for (let i = 0; i < maxTrackLength; i++) {
+  for (let i = 0; i < 50; i++) {
     let prominentEvent: MidiTrackEvent | null = null;
 
     for (const track of midiData.track) {
@@ -38,10 +38,15 @@ fs.readFile("Undertale - Megalovania.mid", {
 
       if (event == null) continue;
 
-      console.log(event);
+      if (event.channel === 1) console.log(event);
 
       switch (event.type) {
+        case 8:
         case 9: {
+          if (event.channel === 1)
+            notes.push(
+              `"${MIDI_NUMBER_NOTE_MAPPINGS[(event.data as number[])[0]]}:2"`
+            );
           // prominentEvent = prominentEvent != null ? ((event.data[0] as number) > (prominentEvent.data[0] as number) ? event : prominentEvent) : event;
         }
 
@@ -61,6 +66,7 @@ fs.readFile("Undertale - Megalovania.mid", {
     // if (prominentEvent != null) notes.push(`"${MIDI_NUMBER_NOTE_MAPPINGS[prominentEvent!.data[0] as number]}:2"`);
   }
 
+  console.log(notes.join(", "));
   console.log(microseconds / 1000000);
   // console.log(notes.join(", "));
 });
