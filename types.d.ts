@@ -21,11 +21,19 @@ export interface ParsedTrack {
   totalNotes: number;
   channel: number | null;
   trackIndex: number;
-  notes: string[];
+  notes: Note[];
 }
 
 export interface WorkingTrack extends ParsedTrack {
   currentNote: number;
-  workingNotes: number[];
-  chords: Set<string>;
+  workingNotes: Map<number, Note>;
+  chords: Map<number, Note>;
+}
+
+export interface Note {
+  midiNumber: number;
+  noteName: string;
+  startBeats: number;
+  endBeats?: number;
+  durationBeats?: number;
 }

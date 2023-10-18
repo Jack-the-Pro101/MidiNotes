@@ -1,7 +1,7 @@
 // @ts-ignore
 import * as midiParser from "midi-parser-js";
 import fs from "fs/promises";
-import { MidiFile, MidiTrackEvent, WorkingTrack } from "types";
+import { MidiFile, MidiTrackEvent, Note, WorkingTrack } from "types";
 import { MIDI_NUMBER_NOTE_MAPPINGS } from "./constants";
 
 fs.readFile("./test_files/risen.mid", {
@@ -49,9 +49,9 @@ fs.readFile("./test_files/risen.mid", {
     tracks.push({
       trackIndex: i,
       channel,
-      chords: new Set(),
+      chords: new Map(),
       currentNote: 0,
-      workingNotes: [],
+      workingNotes: new Map(),
       notes: new Array(totalNotes),
       totalNotes,
     });
@@ -65,10 +65,21 @@ fs.readFile("./test_files/risen.mid", {
 
       if (event == null) continue;
 
+      beats +=
+        Math.round(
+          (1 / Math.round(ppq / event.deltaTime) + Number.EPSILON) * 10
+        ) / 10;
+
+      function endNote(midiNote: number) {
+        tracks[j].workingNotes.get(midiNote);
+      }
+
       switch (event.type) {
         case 8: {
-          console.log(event);
-          console.log(ppq / event.deltaTime);
+          const data = event.data as number[];
+          const note = data[0];
+
+          endNote(note);
 
           break;
         }
@@ -79,17 +90,19 @@ fs.readFile("./test_files/risen.mid", {
           const note = data[0];
           const volume = data[1];
 
-          console.log(event);
-
           if (!useNoteOff && volume === 0) {
-            console.log(1 / Math.round(ppq / event.deltaTime));
+            endNote(note);
 
             continue;
           }
 
-          const nextEvent = track.event[j + 1];
+          // const nextEvent = track.event[j + 1];
 
-          tracks[j].workingNotes.push(note);
+          tracks[j].workingNotes.set(note, {
+            midiNumber: note,
+            noteName: MIDI_NUMBER_NOTE_MAPPINGS[note],
+            startBeats: beats,
+          });
 
           break;
         }
@@ -106,7 +119,8 @@ fs.readFile("./test_files/risen.mid", {
         }
       }
 
-      if (j === largestTrackIndex) microseconds += (event.deltaTime / ppq) * tempo;
+      if (j === largestTrackIndex)
+        microseconds += (event.deltaTime / ppq) * tempo;
     }
   }
 
