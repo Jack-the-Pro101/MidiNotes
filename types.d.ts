@@ -26,5 +26,6 @@ export interface ParsedTrack {
 
 export interface WorkingTrack extends ParsedTrack {
   currentNote: number;
+  workingNotes: number[];
   chords: Set<string>;
 }

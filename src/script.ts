@@ -44,13 +44,16 @@ fs.readFile("./test_files/risen.mid", {
       if (event.type === 8) useNoteOff = true;
     }
 
+    if (useNoteOff) totalNotes /= 2;
+
     tracks.push({
       trackIndex: i,
       channel,
       chords: new Set(),
       currentNote: 0,
-      notes: [],
-      totalNotes: useNoteOff ? totalNotes : totalNotes / 2,
+      workingNotes: [],
+      notes: new Array(totalNotes),
+      totalNotes,
     });
   }
 
@@ -63,8 +66,32 @@ fs.readFile("./test_files/risen.mid", {
       if (event == null) continue;
 
       switch (event.type) {
+        case 8: {
+          console.log(event);
+          console.log(ppq / event.deltaTime);
+
+          break;
+        }
+
         case 9: {
           const data = event.data as number[];
+
+          const note = data[0];
+          const volume = data[1];
+
+          console.log(event);
+
+          if (!useNoteOff && volume === 0) {
+            console.log(1 / Math.round(ppq / event.deltaTime));
+
+            continue;
+          }
+
+          const nextEvent = track.event[j + 1];
+
+          tracks[j].workingNotes.push(note);
+
+          break;
         }
 
         case 255: {
@@ -72,16 +99,14 @@ fs.readFile("./test_files/risen.mid", {
             case 81: {
               bpm = Math.round(60000000 / (event.data as number));
               tempo = event.data as number;
+
+              break;
             }
           }
         }
       }
 
-      const beatCalc = event.deltaTime / ppq;
-      beats += beatCalc;
-      if (j === largestTrackIndex) microseconds += beatCalc * tempo;
-
-      console.log(event, beatCalc);
+      if (j === largestTrackIndex) microseconds += (event.deltaTime / ppq) * tempo;
     }
   }
 
