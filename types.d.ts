@@ -25,9 +25,10 @@ export interface ParsedTrack {
 }
 
 export interface WorkingTrack extends ParsedTrack {
-  currentNote: number;
-  workingNotes: Map<number, Note>;
-  chords: Map<number, Note>;
+  currentBeats: number;
+  currentμs: number;
+  currentNote: Note | null;
+  workingChords: Map<number, Note>;
 }
 
 export interface Note {

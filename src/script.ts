@@ -4,9 +4,13 @@ import fs from "fs/promises";
 import { MidiFile, MidiTrackEvent, Note, WorkingTrack } from "types";
 import { MIDI_NUMBER_NOTE_MAPPINGS } from "./constants";
 
-fs.readFile("./test_files/risen.mid", {
-  encoding: "base64",
-}).then((data) => {
+main();
+
+async function main() {
+  const data = await fs.readFile("./test_files/Aria Math.mid", {
+    encoding: "base64",
+  });
+
   const midiData = midiParser.parse(data) as MidiFile;
 
   const lengthTrackMap: { [key: number]: number } = {};
@@ -19,59 +23,86 @@ fs.readFile("./test_files/risen.mid", {
       return size;
     })
   );
-  const largestTrackIndex = lengthTrackMap[maxTrackLength];
+
+  const trackCount = midiData.track.length;
 
   const ppq = midiData.timeDivision;
   let bpm = 120;
   let tempo = 500000;
-  let beats = 0;
-  let microseconds = 0;
   let useNoteOff = false;
 
-  const tracks: WorkingTrack[] = [];
+  const workingTracks: WorkingTrack[] = [];
+
+  function handleMetaEvent(event: MidiTrackEvent) {
+    switch (event!.metaType) {
+      case 81: {
+        bpm = Math.round(60000000 / (event.data as number));
+        tempo = event.data as number;
+
+        break;
+      }
+    }
+  }
 
   // Begin pass 1, gather data
-  for (let i = 0; i < midiData.track.length; i++) {
+  for (let i = 0; i < trackCount; i++) {
     const track = midiData.track[i];
 
     let totalNotes = 0;
+    let initialized = false;
     let channel: null | number = null;
 
     for (const event of track.event) {
-      if (event.channel) channel = event.channel;
+      if (event.channel != null) channel = event.channel;
 
       if (event.type === 9) totalNotes += 1;
-      if (event.type === 8) useNoteOff = true;
+      if (!useNoteOff && event.type === 8) useNoteOff = true;
+      if (!initialized && event.type === 255) {
+        initialized = true;
+        handleMetaEvent(event);
+      }
     }
 
     if (useNoteOff) totalNotes /= 2;
 
-    tracks.push({
+    workingTracks.push({
       trackIndex: i,
       channel,
-      chords: new Map(),
-      currentNote: 0,
-      workingNotes: new Map(),
-      notes: new Array(totalNotes),
+      currentBeats: 0,
+      currentNote: null,
+      currentμs: 0,
       totalNotes,
+      workingChords: new Map(),
+      notes: [],
     });
   }
 
   // Begin pass 2, analyze data
   for (let i = 0; i < maxTrackLength; i++) {
-    for (let j = 0; j < midiData.track.length; j++) {
+    for (let j = 0; j < trackCount; j++) {
       const track = midiData.track[j];
       const event = track.event[i];
+      const workingTrack = workingTracks[j];
 
       if (event == null) continue;
 
-      beats +=
-        Math.round(
-          (1 / Math.round(ppq / event.deltaTime) + Number.EPSILON) * 10
-        ) / 10;
+      if (event.deltaTime > 0) {
+        const deltaBeats = event.deltaTime / ppq;
 
-      function endNote(midiNote: number) {
-        tracks[j].workingNotes.get(midiNote);
+        workingTrack.currentμs += deltaBeats * tempo;
+        workingTrack.currentBeats += deltaBeats;
+      }
+
+      function endCurrentNote() {
+        workingTrack.notes.push({
+          midiNumber: workingTrack.currentNote!.midiNumber,
+          noteName: workingTrack.currentNote!.noteName,
+          startBeats: workingTrack.currentNote!.startBeats,
+          durationBeats: (workingTrack.currentBeats - workingTrack.currentNote!.startBeats) * 12,
+          endBeats: workingTrack.currentBeats,
+        });
+
+        workingTrack.currentNote = null;
       }
 
       switch (event.type) {
@@ -79,7 +110,7 @@ fs.readFile("./test_files/risen.mid", {
           const data = event.data as number[];
           const note = data[0];
 
-          endNote(note);
+          endCurrentNote();
 
           break;
         }
@@ -90,39 +121,29 @@ fs.readFile("./test_files/risen.mid", {
           const note = data[0];
           const volume = data[1];
 
-          if (!useNoteOff && volume === 0) {
-            endNote(note);
+          if (!useNoteOff && workingTrack.currentNote != null && volume === 0) {
+            endCurrentNote();
 
             continue;
           }
 
           // const nextEvent = track.event[j + 1];
 
-          tracks[j].workingNotes.set(note, {
+          workingTrack.currentNote = {
             midiNumber: note,
             noteName: MIDI_NUMBER_NOTE_MAPPINGS[note],
-            startBeats: beats,
-          });
+            startBeats: workingTrack.currentBeats,
+          };
 
           break;
         }
 
         case 255: {
-          switch (event!.metaType) {
-            case 81: {
-              bpm = Math.round(60000000 / (event.data as number));
-              tempo = event.data as number;
-
-              break;
-            }
-          }
+          handleMetaEvent(event);
         }
       }
-
-      if (j === largestTrackIndex)
-        microseconds += (event.deltaTime / ppq) * tempo;
     }
   }
 
-  console.log(microseconds / 1000000);
-});
+  console.log(workingTracks[2].notes.map((note) => `"${note.noteName}:${note.durationBeats}"`).join(", "));
+}
