@@ -98,7 +98,7 @@ async function main() {
           midiNumber: workingTrack.currentNote!.midiNumber,
           noteName: workingTrack.currentNote!.noteName,
           startBeats: workingTrack.currentNote!.startBeats,
-          durationBeats: (workingTrack.currentBeats - workingTrack.currentNote!.startBeats) * 12,
+          durationBeats: workingTrack.currentBeats - workingTrack.currentNote!.startBeats,
           endBeats: workingTrack.currentBeats,
         });
 
@@ -145,5 +145,5 @@ async function main() {
     }
   }
 
-  console.log(workingTracks[2].notes.map((note) => `"${note.noteName}:${note.durationBeats}"`).join(", "));
+  console.log(workingTracks[0].notes.map((note) => `"${note.noteName}:${Math.round(note.durationBeats! * 100) / 100}"`).join(", "));
 }
