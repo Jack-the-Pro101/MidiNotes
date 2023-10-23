@@ -7,7 +7,7 @@ import { MIDI_NUMBER_NOTE_MAPPINGS } from "./constants";
 main();
 
 async function main() {
-  const data = await fs.readFile("./test_files/Undertale - Megalovania.mid", {
+  const data = await fs.readFile("./test_files/Aria Math.mid", {
     encoding: "base64",
   });
 
@@ -93,15 +93,14 @@ async function main() {
         workingTrack.currentBeats += deltaBeats;
       }
 
-      console.log(`Track ${j}`, event);
+      // console.log(`Track ${j}`, event);
 
       function endCurrentNote() {
         workingTrack.notes.push({
           midiNumber: workingTrack.currentNote!.midiNumber,
           noteName: workingTrack.currentNote!.noteName,
           startBeats: workingTrack.currentNote!.startBeats,
-          durationBeats:
-            workingTrack.currentBeats - workingTrack.currentNote!.startBeats,
+          durationBeats: workingTrack.currentBeats - workingTrack.currentNote!.startBeats,
           endBeats: workingTrack.currentBeats,
         });
 
@@ -125,9 +124,11 @@ async function main() {
           const volume = data[1];
 
           if (!useNoteOff && workingTrack.currentNote != null && volume === 0) {
+            const shouldEndSameNote = workingTrack.currentNote.midiNumber === note;
+
             endCurrentNote();
 
-            if (workingTrack.currentNote.midiNumber === note) continue;
+            if (shouldEndSameNote) continue;
           }
 
           // const nextEvent = track.event[j + 1];
@@ -148,22 +149,11 @@ async function main() {
     }
   }
 
-  const smallestDuration = Math.min(
-    ...workingTracks[0].notes.map((note) => note.durationBeats!)
-  );
+  const smallestDuration = Math.min(...workingTracks[2].notes.map((note) => note.durationBeats!));
 
   const factorToOne = smallestDuration === 0 ? 1 : 1 / smallestDuration;
 
   console.log(`Raised by factor of ${factorToOne}`);
 
-  console.log(
-    workingTracks[0].notes
-      .map(
-        (note) =>
-          `"${note.noteName}:${
-            Math.round(note.durationBeats! * factorToOne * 100) / 100
-          }"`
-      )
-      .join(", ")
-  );
+  console.log(workingTracks[2].notes.map((note) => `"${note.noteName}:${Math.round(note.durationBeats! * factorToOne * 100) / 100}"`).join(", "));
 }
